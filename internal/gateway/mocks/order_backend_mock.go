@@ -4,12 +4,12 @@ package mocks
 
 import (
 	"context"
-	mm_gateway "coursework/gateway/internal/gateway"
 	"sync"
 	mm_atomic "sync/atomic"
 	mm_time "time"
 
 	"github.com/gojuno/minimock/v3"
+	mm_gateway "github.com/smkrep/devsecops-2026-coursework/internal/gateway"
 )
 
 // OrderBackendMock implements mm_gateway.OrderBackend

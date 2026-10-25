@@ -4,14 +4,21 @@ import (
 	"context"
 	"time"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	"coursework/gateway/internal/gateway"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
 
 	"google.golang.org/grpc"
 )
 
+// CatalogClient описывает RPC каталога, используемый исходящим адаптером.
+//
+//go:generate go tool minimock -i CatalogClient -o mocks/catalog_client_mock.go -p mocks -g
+type CatalogClient interface {
+	GetItem(ctx context.Context, request *catalogv1.GetItemRequest, opts ...grpc.CallOption) (*catalogv1.Item, error)
+}
+
 type Catalog struct {
-	client  catalogv1.CatalogServiceClient
+	client  CatalogClient
 	timeout time.Duration
 }
 

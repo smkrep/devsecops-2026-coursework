@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package catalog.v1;
 
-option go_package = "coursework/gateway/gen/catalog/v1;catalogv1";
+option go_package = "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1;catalogv1";
 
 import "google/api/annotations.proto";
 

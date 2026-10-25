@@ -21,6 +21,8 @@ type Config struct {
 	CatalogBackendAddrs []string
 	OrdersBackendAddrs  []string
 	BackendTimeout      time.Duration
+	AuthBackendAddrs    []string
+	AuthTimeout         time.Duration
 }
 
 func Load() (Config, error) {
@@ -45,6 +47,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	cfg.AuthBackendAddrs, err = backendAddresses("AUTH_BACKEND_ADDRS", "127.0.0.1:9096")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.AuthTimeout, err = time.ParseDuration(env("AUTH_TIMEOUT", "1s"))
+	if err != nil || cfg.AuthTimeout <= 0 {
+		return Config{}, fmt.Errorf("%w: AUTH_TIMEOUT must be a positive duration, for example 1s", ErrInvalidTimeout)
+	}
 	cfg.BackendTimeout, err = time.ParseDuration(env("BACKEND_TIMEOUT", "3s"))
 	if err != nil || cfg.BackendTimeout <= 0 {
 		return Config{}, fmt.Errorf("%w: BACKEND_TIMEOUT must be a positive duration, for example 3s", ErrInvalidTimeout)
@@ -52,7 +62,7 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-func env(name, fallback string) string {
+func env(name string, fallback string) string {
 	if value, ok := os.LookupEnv(name); ok {
 		return value
 	}
@@ -60,7 +70,7 @@ func env(name, fallback string) string {
 }
 
 // backendAddresses читает разделённый запятыми список адресов host:port и удаляет повторы.
-func backendAddresses(name, fallback string) ([]string, error) {
+func backendAddresses(name string, fallback string) ([]string, error) {
 	var addresses []string
 	seen := make(map[string]bool)
 	for _, value := range strings.Split(env(name, fallback), ",") {

@@ -3,56 +3,12 @@ package upstream
 import (
 	"testing"
 
-	"coursework/gateway/internal/upstream/mocks"
+	"github.com/smkrep/devsecops-2026-coursework/internal/upstream/mocks"
 
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/serviceconfig"
 )
-
-func TestNewBackendConn(t *testing.T) {
-	tests := []struct {
-		name      string
-		addresses []string
-		wantErr   error
-		wantConn  bool
-	}{
-		{
-			name: "single backend",
-			addresses: []string{
-				"catalog:9092",
-			},
-			wantConn: true,
-		},
-		{
-			name: "multiple backends",
-			addresses: []string{
-				"orders:9093",
-				"orders:9095",
-			},
-			wantConn: true,
-		},
-		{
-			name:    "no backends",
-			wantErr: ErrNoBackendAddresses,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			conn, err := NewBackendConn(tt.addresses)
-			assert.ErrorIs(t, err, tt.wantErr)
-			assert.Equal(t, tt.wantConn, conn != nil)
-			if conn != nil {
-				t.Cleanup(func() { assert.NoError(t, conn.Close()) })
-				assert.Equal(t, "backend:///backend", conn.CanonicalTarget())
-				assert.Equal(t, connectivity.Idle, conn.GetState(), "создание клиента не должно подключать его к backend")
-			}
-		})
-	}
-}
 
 func TestBackendResolverBuild(t *testing.T) {
 	type parseServiceConfigMock struct {

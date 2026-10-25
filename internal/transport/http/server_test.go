@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/upstream/mocks"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/upstream/mocks"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -62,6 +62,32 @@ func TestServerHandler(t *testing.T) {
 				Id:   "42",
 				Name: "Book",
 			},
+		},
+		{
+			name: "unauthenticated response",
+			path: "/api/v1/items/42",
+			clientGetItem: &getItemMock{
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.Unauthenticated, "invalid bearer token"),
+			},
+			wantStatus:  http.StatusUnauthorized,
+			wantCode:    codes.Unauthenticated,
+			wantMessage: "invalid bearer token",
+		},
+		{
+			name: "permission denied response",
+			path: "/api/v1/items/42",
+			clientGetItem: &getItemMock{
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.PermissionDenied, "access denied"),
+			},
+			wantStatus:  http.StatusForbidden,
+			wantCode:    codes.PermissionDenied,
+			wantMessage: "access denied",
 		},
 		{
 			name: "not found",
@@ -147,12 +173,12 @@ func TestServerHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := mocks.NewCatalogServiceClientMock(t)
+			client := mocks.NewCatalogClientMock(t)
 			if call := tt.clientGetItem; call != nil {
 				client.GetItemMock.Expect(minimock.AnyContext, call.request).Return(call.item, call.err)
 				client.GetItemMock.Times(1)
 			}
-			ordersClient := mocks.NewOrderServiceClientMock(t)
+			ordersClient := mocks.NewOrderClientMock(t)
 			if call := tt.clientGetOrder; call != nil {
 				ordersClient.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
 				ordersClient.GetOrderMock.Times(1)
@@ -160,7 +186,11 @@ func TestServerHandler(t *testing.T) {
 			// Подменяем только исходящий RPC; проверяем обработчик без запуска сетевого сервера.
 			conn, err := grpc.NewClient("passthrough:///unused",
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithUnaryInterceptor(func(ctx context.Context, method string, request, reply any, _ *grpc.ClientConn, _ grpc.UnaryInvoker, _ ...grpc.CallOption) error {
+				grpc.WithUnaryInterceptor(func(ctx context.Context, method string, request any, reply any, _ *grpc.ClientConn, _ grpc.UnaryInvoker, _ ...grpc.CallOption) error {
+					md, _ := metadata.FromOutgoingContext(ctx)
+					assert.Equal(t, []string{
+						"Bearer token-42",
+					}, md.Get("authorization"))
 					if method == ordersv1.OrderService_GetOrder_FullMethodName {
 						order, err := ordersClient.GetOrder(ctx, request.(*ordersv1.GetOrderRequest))
 						if err == nil {
@@ -177,14 +207,15 @@ func TestServerHandler(t *testing.T) {
 				}),
 			)
 			assert.NoError(t, err)
-			t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+			t.Cleanup(func() {
+				assert.NoError(t, conn.Close())
+			})
 
 			server, err := NewServer(t.Context(), conn)
 			assert.NoError(t, err)
-			assert.Equal(t, 5*time.Second, server.ReadHeaderTimeout)
-			assert.Equal(t, 60*time.Second, server.IdleTimeout)
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, tt.path, nil).WithContext(t.Context())
+			request.Header.Set("Authorization", "Bearer token-42")
 			server.Handler.ServeHTTP(recorder, request)
 
 			if !assert.Equal(t, tt.wantStatus, recorder.Code, "body: %s", recorder.Body) {

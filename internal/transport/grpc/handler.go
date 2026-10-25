@@ -3,8 +3,8 @@ package grpctransport
 import (
 	"context"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	"coursework/gateway/internal/gateway"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
 )
 
 type Handler struct {

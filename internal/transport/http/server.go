@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	ordersv1 "coursework/gateway/gen/orders/v1"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"

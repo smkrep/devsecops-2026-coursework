@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"coursework/gateway/internal/app"
-	"coursework/gateway/internal/config"
+	"github.com/smkrep/devsecops-2026-coursework/internal/app"
+	"github.com/smkrep/devsecops-2026-coursework/internal/config"
 )
 
 func main() {

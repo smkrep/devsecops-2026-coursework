@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/resolver"
 )
 
+//go:generate go tool minimock -i google.golang.org/grpc/resolver.ClientConn -o mocks/resolver_client_conn_mock.go -p mocks -g
+
 var ErrNoBackendAddresses = errors.New("at least one backend address is required")
 
 const backendServiceConfig = `{"loadBalancingConfig":[{"` + roundrobin.Name + `":{}}]}`
@@ -36,7 +38,9 @@ type backendResolver struct {
 	addresses []string
 }
 
-func (*backendResolver) Scheme() string { return "backend" }
+func (*backendResolver) Scheme() string {
+	return "backend"
+}
 
 func (r *backendResolver) Build(_ resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	config := cc.ParseServiceConfig(backendServiceConfig)

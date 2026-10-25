@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"time"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/config"
-	"coursework/gateway/internal/gateway"
-	grpctransport "coursework/gateway/internal/transport/grpc"
-	httptransport "coursework/gateway/internal/transport/http"
-	"coursework/gateway/internal/upstream"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/config"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	grpctransport "github.com/smkrep/devsecops-2026-coursework/internal/transport/grpc"
+	httptransport "github.com/smkrep/devsecops-2026-coursework/internal/transport/http"
+	"github.com/smkrep/devsecops-2026-coursework/internal/upstream"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,13 +35,20 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 	defer ordersConn.Close()
 
+	authConn, err := upstream.NewBackendConn(cfg.AuthBackendAddrs)
+	if err != nil {
+		return fmt.Errorf("create authentication client: %w", err)
+	}
+	defer authConn.Close()
+
 	grpcListener, err := net.Listen("tcp", cfg.GRPCAddr)
 	if err != nil {
 		return fmt.Errorf("listen for gRPC: %w", err)
 	}
 	defer grpcListener.Close()
 
-	grpcServer := grpc.NewServer()
+	verifier := upstream.NewAuthentication(authConn, cfg.AuthTimeout)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(grpctransport.Authentication(verifier)))
 	service := gateway.NewService(upstream.NewCatalog(backendConn, cfg.BackendTimeout))
 	catalogv1.RegisterCatalogServiceServer(grpcServer, grpctransport.NewHandler(service))
 	orders := gateway.NewOrderService(upstream.NewOrders(ordersConn, cfg.BackendTimeout))
@@ -78,8 +85,12 @@ func Run(ctx context.Context, cfg config.Config) error {
 	defer httpListener.Close()
 
 	serveErrors := make(chan error, 2)
-	go func() { serveErrors <- grpcServer.Serve(grpcListener) }()
-	go func() { serveErrors <- httpServer.Serve(httpListener) }()
+	go func() {
+		serveErrors <- grpcServer.Serve(grpcListener)
+	}()
+	go func() {
+		serveErrors <- httpServer.Serve(httpListener)
+	}()
 	slog.Info("gateway started", "http", httpListener.Addr(), "grpc", grpcListener.Addr(), "catalog_backends", cfg.CatalogBackendAddrs, "orders_backends", cfg.OrdersBackendAddrs)
 
 	var serveErr error

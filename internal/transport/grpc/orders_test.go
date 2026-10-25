@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/gateway"
-	"coursework/gateway/internal/gateway/mocks"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"

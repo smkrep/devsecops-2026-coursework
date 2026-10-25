@@ -1,4 +1,4 @@
-module coursework/gateway
+module github.com/smkrep/devsecops-2026-coursework
 
 go 1.26.0
 

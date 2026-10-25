@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package orders.v1;
 
-option go_package = "coursework/gateway/gen/orders/v1;ordersv1";
+option go_package = "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1;ordersv1";
 
 import "google/api/annotations.proto";
 

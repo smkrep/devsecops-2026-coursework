@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "github.com/smkrep/devsecops-2026-coursework/gen/auth/v1;authv1";
+
+// Контракт внешнего сервиса аутентификации; его реализация в проект не входит.
+service AuthenticationService {
+  // Неверный или истёкший токен возвращает статус Unauthenticated.
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  string user_id = 1;
+}

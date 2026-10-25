@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"coursework/gateway/internal/config"
+	"github.com/smkrep/devsecops-2026-coursework/internal/config"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,6 +41,10 @@ func TestRunInvalidGRPCAddress(t *testing.T) {
 					"127.0.0.1:9093",
 				},
 				BackendTimeout: time.Second,
+				AuthBackendAddrs: []string{
+					"127.0.0.1:9096",
+				},
+				AuthTimeout: time.Second,
 			}
 			err := Run(t.Context(), cfg)
 			var addrErr *net.AddrError

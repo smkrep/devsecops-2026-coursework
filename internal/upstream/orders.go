@@ -4,14 +4,21 @@ import (
 	"context"
 	"time"
 
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/gateway"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
 
 	"google.golang.org/grpc"
 )
 
+// OrderClient описывает RPC заказов, используемый исходящим адаптером.
+//
+//go:generate go tool minimock -i OrderClient -o mocks/order_client_mock.go -p mocks -g
+type OrderClient interface {
+	GetOrder(ctx context.Context, request *ordersv1.GetOrderRequest, opts ...grpc.CallOption) (*ordersv1.Order, error)
+}
+
 type Orders struct {
-	client  ordersv1.OrderServiceClient
+	client  OrderClient
 	timeout time.Duration
 }
 

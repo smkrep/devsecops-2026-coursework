@@ -3,8 +3,8 @@ package grpctransport
 import (
 	"context"
 
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/gateway"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
 )
 
 type OrderHandler struct {

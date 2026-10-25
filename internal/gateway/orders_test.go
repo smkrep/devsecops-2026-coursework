@@ -3,8 +3,8 @@ package gateway_test
 import (
 	"testing"
 
-	"coursework/gateway/internal/gateway"
-	"coursework/gateway/internal/gateway/mocks"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway/mocks"
 
 	"github.com/stretchr/testify/assert"
 )

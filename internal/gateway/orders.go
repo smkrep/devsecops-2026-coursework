@@ -9,6 +9,8 @@ type Order struct {
 }
 
 // OrderBackend описывает обращения шлюза к сервису заказов.
+//
+//go:generate go tool minimock -i OrderBackend -o mocks/order_backend_mock.go -p mocks -g
 type OrderBackend interface {
 	GetOrder(ctx context.Context, id string) (Order, error)
 }

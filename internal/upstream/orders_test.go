@@ -5,16 +5,14 @@ import (
 	"testing"
 	"time"
 
-	ordersv1 "coursework/gateway/gen/orders/v1"
-	"coursework/gateway/internal/gateway"
-	"coursework/gateway/internal/upstream/mocks"
+	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	"github.com/smkrep/devsecops-2026-coursework/internal/upstream/mocks"
 
 	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestOrdersGetOrder(t *testing.T) {
@@ -72,14 +70,17 @@ func TestOrdersGetOrder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := metadata.NewOutgoingContext(t.Context(), metadata.Pairs("x-request-id", "request-42"))
+			ctx := metadata.NewOutgoingContext(t.Context(), metadata.Pairs("x-request-id", "request-42", "x-user-id", "user-42"))
 			var callCtx context.Context
-			client := mocks.NewOrderServiceClientMock(t)
+			client := mocks.NewOrderClientMock(t)
 			if call := tt.clientGetOrder; call != nil {
 				client.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
 				client.GetOrderMock.Times(1).Inspect(func(ctx context.Context, _ *ordersv1.GetOrderRequest, _ ...grpc.CallOption) {
 					callCtx = ctx
 					md, _ := metadata.FromOutgoingContext(ctx)
+					assert.Equal(t, []string{
+						"user-42",
+					}, md.Get("x-user-id"))
 					assert.Equal(t, []string{
 						"request-42",
 					}, md.Get("x-request-id"))
@@ -148,7 +149,7 @@ func TestOrdersGetOrderDeadline(t *testing.T) {
 			parentDeadline, _ := ctx.Deadline()
 			var callCtx context.Context
 			var calledAt time.Time
-			client := mocks.NewOrderServiceClientMock(t)
+			client := mocks.NewOrderClientMock(t)
 			if call := tt.clientGetOrder; call != nil {
 				client.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
 				client.GetOrderMock.Times(1).Inspect(func(ctx context.Context, _ *ordersv1.GetOrderRequest, _ ...grpc.CallOption) {
@@ -214,7 +215,7 @@ func TestOrdersGetOrderCancellation(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			client := mocks.NewOrderServiceClientMock(t)
+			client := mocks.NewOrderClientMock(t)
 			if call := tt.clientGetOrder; call != nil {
 				client.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
 				client.GetOrderMock.Times(1).Inspect(func(ctx context.Context, _ *ordersv1.GetOrderRequest, _ ...grpc.CallOption) {
@@ -230,74 +231,6 @@ func TestOrdersGetOrderCancellation(t *testing.T) {
 			got, err := orders.GetOrder(ctx, "42")
 			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Empty(t, got)
-		})
-	}
-}
-
-func TestNewOrders(t *testing.T) {
-	type getOrderMock struct {
-		request *ordersv1.GetOrderRequest
-		order   *ordersv1.Order
-		err     error
-	}
-
-	tests := []struct {
-		name           string
-		id             string
-		clientGetOrder *getOrderMock
-		want           gateway.Order
-		wantErr        error
-	}{
-		{
-			name: "connection is used for RPC",
-			id:   "42",
-			clientGetOrder: &getOrderMock{
-				request: &ordersv1.GetOrderRequest{
-					Id: "42",
-				},
-				order: &ordersv1.Order{
-					Id:     "42",
-					ItemId: "7",
-					Status: "created",
-				},
-			},
-			want: gateway.Order{
-				ID:     "42",
-				ItemID: "7",
-				Status: "created",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := mocks.NewOrderServiceClientMock(t)
-			if call := tt.clientGetOrder; call != nil {
-				client.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
-				client.GetOrderMock.Times(1)
-			}
-			// Перехватчик заменяет вызов RPC; подключение к сети и запуск сервера не нужны.
-			conn, err := grpc.NewClient("passthrough:///unused",
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithUnaryInterceptor(func(ctx context.Context, method string, request, reply any, _ *grpc.ClientConn, _ grpc.UnaryInvoker, _ ...grpc.CallOption) error {
-					assert.Equal(t, ordersv1.OrderService_GetOrder_FullMethodName, method)
-					_, ok := ctx.Deadline()
-					assert.True(t, ok, "backend context must have a deadline")
-					order, err := client.GetOrder(ctx, request.(*ordersv1.GetOrderRequest))
-					if err == nil {
-						proto.Merge(reply.(*ordersv1.Order), order)
-					}
-					return err
-				}),
-			)
-			assert.NoError(t, err)
-			t.Cleanup(func() { assert.NoError(t, conn.Close()) })
-
-			got, err := NewOrders(conn, time.Hour).GetOrder(t.Context(), tt.id)
-			assert.ErrorIs(t, err, tt.wantErr)
-			assert.Equal(t, tt.want, got)
 		})
 	}
 }

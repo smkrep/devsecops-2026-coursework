@@ -19,6 +19,10 @@ func TestLoad(t *testing.T) {
 			"127.0.0.1:9093",
 		},
 		BackendTimeout: 3 * time.Second,
+		AuthBackendAddrs: []string{
+			"127.0.0.1:9096",
+		},
+		AuthTimeout: time.Second,
 	}
 	tests := []struct {
 		name    string
@@ -38,6 +42,8 @@ func TestLoad(t *testing.T) {
 				"CATALOG_BACKEND_ADDRS": " catalog:9092, [::1]:9094, catalog:9092 ",
 				"ORDERS_BACKEND_ADDRS":  "orders:9093,orders:9095",
 				"BACKEND_TIMEOUT":       "250ms",
+				"AUTH_BACKEND_ADDRS":    "auth:9096,auth:9097",
+				"AUTH_TIMEOUT":          "500ms",
 			},
 			want: Config{
 				HTTPAddr: "0.0.0.0:8081",
@@ -51,6 +57,11 @@ func TestLoad(t *testing.T) {
 					"orders:9095",
 				},
 				BackendTimeout: 250 * time.Millisecond,
+				AuthBackendAddrs: []string{
+					"auth:9096",
+					"auth:9097",
+				},
+				AuthTimeout: 500 * time.Millisecond,
 			},
 		},
 		{
@@ -96,6 +107,27 @@ func TestLoad(t *testing.T) {
 			wantErr: ErrInvalidAddress,
 		},
 		{
+			name: "invalid auth address",
+			env: map[string]string{
+				"AUTH_BACKEND_ADDRS": "auth",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "invalid auth timeout",
+			env: map[string]string{
+				"AUTH_TIMEOUT": "soon",
+			},
+			wantErr: ErrInvalidTimeout,
+		},
+		{
+			name: "zero auth timeout",
+			env: map[string]string{
+				"AUTH_TIMEOUT": "0s",
+			},
+			wantErr: ErrInvalidTimeout,
+		},
+		{
 			name: "invalid timeout",
 			env: map[string]string{
 				"BACKEND_TIMEOUT": "soon",
@@ -119,6 +151,8 @@ func TestLoad(t *testing.T) {
 				"CATALOG_BACKEND_ADDRS",
 				"ORDERS_BACKEND_ADDRS",
 				"BACKEND_TIMEOUT",
+				"AUTH_BACKEND_ADDRS",
+				"AUTH_TIMEOUT",
 			} {
 				t.Setenv(key, "")
 				assert.NoError(t, os.Unsetenv(key))

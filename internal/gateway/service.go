@@ -8,6 +8,8 @@ type Item struct {
 }
 
 // CatalogBackend описывает обращения шлюза к сервису каталога.
+//
+//go:generate go tool minimock -i CatalogBackend -o mocks/catalog_backend_mock.go -p mocks -g
 type CatalogBackend interface {
 	GetItem(ctx context.Context, id string) (Item, error)
 }

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	catalogv1 "coursework/gateway/gen/catalog/v1"
-	"coursework/gateway/internal/gateway"
-	"coursework/gateway/internal/gateway/mocks"
+	catalogv1 "github.com/smkrep/devsecops-2026-coursework/gen/catalog/v1"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	"github.com/smkrep/devsecops-2026-coursework/internal/gateway/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
