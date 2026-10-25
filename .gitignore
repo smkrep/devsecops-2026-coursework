@@ -1,0 +1,40 @@
+# Coursework documents
+/docs/
+
+# Build outputs and locally installed generators
+/bin/
+/.bin/
+/build/
+/dist/
+/gateway
+*.test
+*.exe
+
+# Test coverage and profiling
+/coverage/
+/coverage.out
+/coverage.html
+*.prof
+*.pprof
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+/.aws/
+/certs/
+*.key
+
+# Local agent and editor settings
+/.agents/
+/.codex/
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+/gen

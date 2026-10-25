@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+option go_package = "coursework/gateway/gen/catalog/v1;catalogv1";
+
+import "google/api/annotations.proto";
+
+service CatalogService {
+  rpc GetItem(GetItemRequest) returns (Item) {
+    option (google.api.http) = {
+      get: "/api/v1/items/{id}"
+    };
+  }
+}
+
+message GetItemRequest {
+  string id = 1;
+}
+
+message Item {
+  string id = 1;
+  string name = 2;
+}
