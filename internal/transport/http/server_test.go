@@ -224,7 +224,7 @@ func TestServerHandler(t *testing.T) {
 				assert.NoError(t, conn.Close())
 			})
 
-			server, err := NewServer(t.Context(), conn)
+			server, err := NewServer(t.Context(), conn, http.NotFoundHandler())
 			assert.NoError(t, err)
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, tt.path, nil).WithContext(t.Context())

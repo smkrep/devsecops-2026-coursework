@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func NewServer(ctx context.Context, conn *grpc.ClientConn) (*http.Server, error) {
+func NewServer(ctx context.Context, conn *grpc.ClientConn, metricsHandler http.Handler) (*http.Server, error) {
 	mux := runtime.NewServeMux()
 	if err := catalogv1.RegisterCatalogServiceHandler(ctx, mux, conn); err != nil {
 		return nil, err
@@ -20,8 +20,11 @@ func NewServer(ctx context.Context, conn *grpc.ClientConn) (*http.Server, error)
 	if err := ordersv1.RegisterOrderServiceHandler(ctx, mux, conn); err != nil {
 		return nil, err
 	}
+	router := http.NewServeMux()
+	router.Handle("GET /metrics", metricsHandler)
+	router.Handle("/", mux)
 	return &http.Server{
-		Handler:           mux,
+		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}, nil

@@ -13,6 +13,7 @@ import (
 	ordersv1 "github.com/smkrep/devsecops-2026-coursework/gen/orders/v1"
 	"github.com/smkrep/devsecops-2026-coursework/internal/config"
 	"github.com/smkrep/devsecops-2026-coursework/internal/gateway"
+	"github.com/smkrep/devsecops-2026-coursework/internal/metrics"
 	grpctransport "github.com/smkrep/devsecops-2026-coursework/internal/transport/grpc"
 	httptransport "github.com/smkrep/devsecops-2026-coursework/internal/transport/http"
 	"github.com/smkrep/devsecops-2026-coursework/internal/upstream"
@@ -53,9 +54,14 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 	defer grpcListener.Close()
 
+	requestMetrics := metrics.New(
+		catalogv1.CatalogService_GetItem_FullMethodName,
+		ordersv1.OrderService_GetOrder_FullMethodName,
+	)
 	verifier := upstream.NewAuthentication(authConn, cfg.AuthTimeout)
 	limiter := upstream.NewRateLimit(rateLimitConn, cfg.RateLimitTimeout)
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		grpctransport.Metrics(requestMetrics),
 		grpctransport.Authentication(verifier),
 		grpctransport.RateLimiting(limiter),
 	))
@@ -84,7 +90,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 	defer localConn.Close()
 
-	httpServer, err := httptransport.NewServer(ctx, localConn)
+	httpServer, err := httptransport.NewServer(ctx, localConn, requestMetrics.Handler())
 	if err != nil {
 		return fmt.Errorf("create HTTP adapter: %w", err)
 	}
