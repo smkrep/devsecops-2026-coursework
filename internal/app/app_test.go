@@ -12,12 +12,17 @@ import (
 
 func TestRunInvalidGRPCAddress(t *testing.T) {
 	tests := []struct {
-		name string
-		addr string
+		name    string
+		addr    string
+		wantErr *net.AddrError
 	}{
 		{
 			name: "missing port",
 			addr: "127.0.0.1",
+			wantErr: &net.AddrError{
+				Err:  "missing port in address",
+				Addr: "127.0.0.1",
+			},
 		},
 	}
 
@@ -25,17 +30,22 @@ func TestRunInvalidGRPCAddress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Invalid numeric addresses fail before a socket or server is opened.
+			// Некорректный адрес с числовым IP вызывает ошибку до открытия сокета и запуска сервера.
 			cfg := config.Config{
-				HTTPAddr:       "127.0.0.1:8080",
-				GRPCAddr:       tt.addr,
-				BackendAddr:    "127.0.0.1:9092",
+				HTTPAddr: "127.0.0.1:8080",
+				GRPCAddr: tt.addr,
+				CatalogBackendAddrs: []string{
+					"127.0.0.1:9092",
+				},
+				OrdersBackendAddrs: []string{
+					"127.0.0.1:9093",
+				},
 				BackendTimeout: time.Second,
 			}
 			err := Run(t.Context(), cfg)
-			assert.ErrorContains(t, err, "listen for gRPC:")
 			var addrErr *net.AddrError
 			assert.ErrorAs(t, err, &addrErr)
+			assert.Equal(t, tt.wantErr, addrErr)
 		})
 	}
 }

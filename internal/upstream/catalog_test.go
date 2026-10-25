@@ -35,18 +35,31 @@ func TestCatalogGetItem(t *testing.T) {
 			name: "success",
 			id:   "42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{Id: "42", Name: "Book"},
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{
+					Id:   "42",
+					Name: "Book",
+				},
 			},
-			want: gateway.Item{ID: "42", Name: "Book"},
+			want: gateway.Item{
+				ID:   "42",
+				Name: "Book",
+			},
 		},
 		{
 			name: "error discards response",
 			id:   "42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{Id: "42", Name: "Book"},
-				err:     assert.AnError,
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{
+					Id:   "42",
+					Name: "Book",
+				},
+				err: assert.AnError,
 			},
 			wantErr: assert.AnError,
 		},
@@ -64,11 +77,16 @@ func TestCatalogGetItem(t *testing.T) {
 				client.GetItemMock.Times(1).Inspect(func(ctx context.Context, _ *catalogv1.GetItemRequest, _ ...grpc.CallOption) {
 					callCtx = ctx
 					md, _ := metadata.FromOutgoingContext(ctx)
-					assert.Equal(t, []string{"request-42"}, md.Get("x-request-id"))
+					assert.Equal(t, []string{
+						"request-42",
+					}, md.Get("x-request-id"))
 				})
 			}
 
-			catalog := &Catalog{client: client, timeout: time.Hour}
+			catalog := &Catalog{
+				client:  client,
+				timeout: time.Hour,
+			}
 			got, err := catalog.GetItem(ctx, tt.id)
 			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Equal(t, tt.want, got)
@@ -98,8 +116,10 @@ func TestCatalogGetItemDeadline(t *testing.T) {
 			parentTimeout:  2 * time.Hour,
 			backendTimeout: time.Hour,
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{},
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{},
 			},
 		},
 		{
@@ -107,8 +127,10 @@ func TestCatalogGetItemDeadline(t *testing.T) {
 			parentTimeout:  time.Hour,
 			backendTimeout: 2 * time.Hour,
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{},
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{},
 			},
 			wantParent: true,
 		},
@@ -132,7 +154,10 @@ func TestCatalogGetItemDeadline(t *testing.T) {
 				})
 			}
 
-			catalog := &Catalog{client: client, timeout: tt.backendTimeout}
+			catalog := &Catalog{
+				client:  client,
+				timeout: tt.backendTimeout,
+			}
 			before := time.Now()
 			_, err := catalog.GetItem(ctx, "42")
 			assert.NoError(t, err)
@@ -171,8 +196,10 @@ func TestCatalogGetItemCancellation(t *testing.T) {
 			name:           "parent canceled during call",
 			backendTimeout: time.Hour,
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				err:     context.Canceled,
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: context.Canceled,
 			},
 			wantErr: context.Canceled,
 		},
@@ -193,7 +220,10 @@ func TestCatalogGetItemCancellation(t *testing.T) {
 				})
 			}
 
-			catalog := &Catalog{client: client, timeout: tt.backendTimeout}
+			catalog := &Catalog{
+				client:  client,
+				timeout: tt.backendTimeout,
+			}
 			got, err := catalog.GetItem(ctx, "42")
 			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Empty(t, got)
@@ -219,10 +249,18 @@ func TestNewCatalog(t *testing.T) {
 			name: "connection is used for RPC",
 			id:   "42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{Id: "42", Name: "Book"},
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{
+					Id:   "42",
+					Name: "Book",
+				},
 			},
-			want: gateway.Item{ID: "42", Name: "Book"},
+			want: gateway.Item{
+				ID:   "42",
+				Name: "Book",
+			},
 		},
 	}
 
@@ -235,7 +273,7 @@ func TestNewCatalog(t *testing.T) {
 				client.GetItemMock.Expect(minimock.AnyContext, call.request).Return(call.item, call.err)
 				client.GetItemMock.Times(1)
 			}
-			// The interceptor replaces the RPC invocation; no dial or server is needed.
+			// Перехватчик заменяет вызов RPC; подключение к сети и запуск сервера не нужны.
 			conn, err := grpc.NewClient("passthrough:///unused",
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithUnaryInterceptor(func(ctx context.Context, method string, request, reply any, _ *grpc.ClientConn, _ grpc.UnaryInvoker, _ ...grpc.CallOption) error {
@@ -249,9 +287,7 @@ func TestNewCatalog(t *testing.T) {
 					return err
 				}),
 			)
-			if !assert.NoError(t, err) {
-				return
-			}
+			assert.NoError(t, err)
 			t.Cleanup(func() { assert.NoError(t, conn.Close()) })
 
 			got, err := NewCatalog(conn, time.Hour).GetItem(t.Context(), tt.id)

@@ -27,21 +27,33 @@ func TestHandlerGetItem(t *testing.T) {
 		wantErr        error
 	}{
 		{
-			name:    "success",
-			request: &catalogv1.GetItemRequest{Id: "42"},
-			backendGetItem: &getItemMock{
-				id:   "42",
-				item: gateway.Item{ID: "42", Name: "Book"},
+			name: "success",
+			request: &catalogv1.GetItemRequest{
+				Id: "42",
 			},
-			want: &catalogv1.Item{Id: "42", Name: "Book"},
+			backendGetItem: &getItemMock{
+				id: "42",
+				item: gateway.Item{
+					ID:   "42",
+					Name: "Book",
+				},
+			},
+			want: &catalogv1.Item{
+				Id:   "42",
+				Name: "Book",
+			},
 		},
 		{
-			name:    "unexpected error discards item",
-			request: &catalogv1.GetItemRequest{Id: "42"},
+			name: "unexpected error discards item",
+			request: &catalogv1.GetItemRequest{
+				Id: "42",
+			},
 			backendGetItem: &getItemMock{
-				id:   "42",
-				item: gateway.Item{ID: "42"},
-				err:  assert.AnError,
+				id: "42",
+				item: gateway.Item{
+					ID: "42",
+				},
+				err: assert.AnError,
 			},
 			wantErr: assert.AnError,
 		},

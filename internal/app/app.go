@@ -10,6 +10,7 @@ import (
 	"time"
 
 	catalogv1 "coursework/gateway/gen/catalog/v1"
+	ordersv1 "coursework/gateway/gen/orders/v1"
 	"coursework/gateway/internal/config"
 	"coursework/gateway/internal/gateway"
 	grpctransport "coursework/gateway/internal/transport/grpc"
@@ -21,12 +22,18 @@ import (
 )
 
 func Run(ctx context.Context, cfg config.Config) error {
-	// NewClient connects lazily: the gateway can start while the backend is offline.
-	backendConn, err := grpc.NewClient(cfg.BackendAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// NewClient устанавливает соединение лениво: шлюз запускается даже при недоступном backend.
+	backendConn, err := upstream.NewBackendConn(cfg.CatalogBackendAddrs)
 	if err != nil {
-		return fmt.Errorf("create backend client: %w", err)
+		return fmt.Errorf("create catalog backend client: %w", err)
 	}
 	defer backendConn.Close()
+
+	ordersConn, err := upstream.NewBackendConn(cfg.OrdersBackendAddrs)
+	if err != nil {
+		return fmt.Errorf("create orders backend client: %w", err)
+	}
+	defer ordersConn.Close()
 
 	grpcListener, err := net.Listen("tcp", cfg.GRPCAddr)
 	if err != nil {
@@ -37,8 +44,10 @@ func Run(ctx context.Context, cfg config.Config) error {
 	grpcServer := grpc.NewServer()
 	service := gateway.NewService(upstream.NewCatalog(backendConn, cfg.BackendTimeout))
 	catalogv1.RegisterCatalogServiceServer(grpcServer, grpctransport.NewHandler(service))
+	orders := gateway.NewOrderService(upstream.NewOrders(ordersConn, cfg.BackendTimeout))
+	ordersv1.RegisterOrderServiceServer(grpcServer, grpctransport.NewOrderHandler(orders))
 
-	// Dial loopback even when the gRPC listener is bound to a wildcard address.
+	// Подключаемся через loopback, даже если gRPC-сервер слушает на всех интерфейсах.
 	localAddr := grpcListener.Addr().(*net.TCPAddr)
 	localIP := localAddr.IP
 	if localIP.IsUnspecified() {
@@ -48,7 +57,10 @@ func Run(ctx context.Context, cfg config.Config) error {
 			localIP = net.IPv6loopback
 		}
 	}
-	localTarget := (&net.TCPAddr{IP: localIP, Port: localAddr.Port}).String()
+	localTarget := (&net.TCPAddr{
+		IP:   localIP,
+		Port: localAddr.Port,
+	}).String()
 	localConn, err := grpc.NewClient(localTarget, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("create local gRPC client: %w", err)
@@ -68,7 +80,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	serveErrors := make(chan error, 2)
 	go func() { serveErrors <- grpcServer.Serve(grpcListener) }()
 	go func() { serveErrors <- httpServer.Serve(httpListener) }()
-	slog.Info("gateway started", "http", httpListener.Addr(), "grpc", grpcListener.Addr(), "backend", cfg.BackendAddr)
+	slog.Info("gateway started", "http", httpListener.Addr(), "grpc", grpcListener.Addr(), "catalog_backends", cfg.CatalogBackendAddrs, "orders_backends", cfg.OrdersBackendAddrs)
 
 	var serveErr error
 	select {
@@ -76,7 +88,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	case serveErr = <-serveErrors:
 	}
 
-	// Drain HTTP before stopping its local gRPC upstream. Bound the entire shutdown.
+	// Завершаем HTTP-запросы перед остановкой локального gRPC-сервера. Ограничиваем общее время остановки.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	shutdownErr := httpServer.Shutdown(shutdownCtx)

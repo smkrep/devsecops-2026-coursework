@@ -26,9 +26,14 @@ func (c *Catalog) GetItem(ctx context.Context, id string) (gateway.Item, error) 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	item, err := c.client.GetItem(ctx, &catalogv1.GetItemRequest{Id: id})
+	item, err := c.client.GetItem(ctx, &catalogv1.GetItemRequest{
+		Id: id,
+	})
 	if err != nil {
 		return gateway.Item{}, err
 	}
-	return gateway.Item{ID: item.GetId(), Name: item.GetName()}, nil
+	return gateway.Item{
+		ID:   item.GetId(),
+		Name: item.GetName(),
+	}, nil
 }

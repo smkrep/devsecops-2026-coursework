@@ -10,16 +10,21 @@ import (
 
 func TestLoad(t *testing.T) {
 	defaults := Config{
-		HTTPAddr:       "127.0.0.1:8080",
-		GRPCAddr:       "127.0.0.1:9090",
-		BackendAddr:    "127.0.0.1:9092",
+		HTTPAddr: "127.0.0.1:8080",
+		GRPCAddr: "127.0.0.1:9090",
+		CatalogBackendAddrs: []string{
+			"127.0.0.1:9092",
+		},
+		OrdersBackendAddrs: []string{
+			"127.0.0.1:9093",
+		},
 		BackendTimeout: 3 * time.Second,
 	}
 	tests := []struct {
 		name    string
 		env     map[string]string
 		want    Config
-		wantErr string
+		wantErr error
 	}{
 		{
 			name: "defaults",
@@ -28,53 +33,101 @@ func TestLoad(t *testing.T) {
 		{
 			name: "overrides",
 			env: map[string]string{
-				"HTTP_ADDR":       "0.0.0.0:8081",
-				"GRPC_ADDR":       "[::1]:9091",
-				"BACKEND_ADDR":    "catalog:9092",
-				"BACKEND_TIMEOUT": "250ms",
+				"HTTP_ADDR":             "0.0.0.0:8081",
+				"GRPC_ADDR":             "[::1]:9091",
+				"CATALOG_BACKEND_ADDRS": " catalog:9092, [::1]:9094, catalog:9092 ",
+				"ORDERS_BACKEND_ADDRS":  "orders:9093,orders:9095",
+				"BACKEND_TIMEOUT":       "250ms",
 			},
 			want: Config{
-				HTTPAddr:       "0.0.0.0:8081",
-				GRPCAddr:       "[::1]:9091",
-				BackendAddr:    "catalog:9092",
+				HTTPAddr: "0.0.0.0:8081",
+				GRPCAddr: "[::1]:9091",
+				CatalogBackendAddrs: []string{
+					"catalog:9092",
+					"[::1]:9094",
+				},
+				OrdersBackendAddrs: []string{
+					"orders:9093",
+					"orders:9095",
+				},
 				BackendTimeout: 250 * time.Millisecond,
 			},
 		},
 		{
-			name:    "HTTP address without port",
-			env:     map[string]string{"HTTP_ADDR": "localhost"},
-			wantErr: "HTTP_ADDR",
+			name: "HTTP address without port",
+			env: map[string]string{
+				"HTTP_ADDR": "localhost",
+			},
+			wantErr: ErrInvalidAddress,
 		},
 		{
-			name:    "invalid timeout",
-			env:     map[string]string{"BACKEND_TIMEOUT": "soon"},
-			wantErr: "BACKEND_TIMEOUT",
+			name: "orders address without port",
+			env: map[string]string{
+				"ORDERS_BACKEND_ADDRS": "orders",
+			},
+			wantErr: ErrInvalidAddress,
 		},
 		{
-			name:    "zero timeout",
-			env:     map[string]string{"BACKEND_TIMEOUT": "0s"},
-			wantErr: "BACKEND_TIMEOUT",
+			name: "empty backend list",
+			env: map[string]string{
+				"CATALOG_BACKEND_ADDRS": "",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "empty address in list",
+			env: map[string]string{
+				"CATALOG_BACKEND_ADDRS": "catalog:9092,",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "invalid backend port",
+			env: map[string]string{
+				"ORDERS_BACKEND_ADDRS": "orders:70000",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "backend URI instead of address",
+			env: map[string]string{
+				"CATALOG_BACKEND_ADDRS": "http://catalog:9092",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "invalid timeout",
+			env: map[string]string{
+				"BACKEND_TIMEOUT": "soon",
+			},
+			wantErr: ErrInvalidTimeout,
+		},
+		{
+			name: "zero timeout",
+			env: map[string]string{
+				"BACKEND_TIMEOUT": "0s",
+			},
+			wantErr: ErrInvalidTimeout,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Isolate defaults from the developer's environment; Setenv restores it at cleanup.
-			for _, key := range []string{"HTTP_ADDR", "GRPC_ADDR", "BACKEND_ADDR", "BACKEND_TIMEOUT"} {
+			// Изолируем значения по умолчанию от окружения разработчика; Setenv восстановит его после теста.
+			for _, key := range []string{
+				"HTTP_ADDR",
+				"GRPC_ADDR",
+				"CATALOG_BACKEND_ADDRS",
+				"ORDERS_BACKEND_ADDRS",
+				"BACKEND_TIMEOUT",
+			} {
 				t.Setenv(key, "")
-				if !assert.NoError(t, os.Unsetenv(key)) {
-					return
-				}
+				assert.NoError(t, os.Unsetenv(key))
 			}
 			for key, value := range tt.env {
 				t.Setenv(key, value)
 			}
 			got, err := Load()
-			if tt.wantErr != "" {
-				assert.ErrorContains(t, err, tt.wantErr)
-				assert.Empty(t, got)
-				return
-			}
-			assert.NoError(t, err)
+			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Equal(t, tt.want, got)
 		})
 	}

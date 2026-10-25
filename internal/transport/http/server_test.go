@@ -9,6 +9,7 @@ import (
 	"time"
 
 	catalogv1 "coursework/gateway/gen/catalog/v1"
+	ordersv1 "coursework/gateway/gen/orders/v1"
 	"coursework/gateway/internal/upstream/mocks"
 
 	"github.com/gojuno/minimock/v3"
@@ -27,31 +28,49 @@ func TestServerHandler(t *testing.T) {
 		err     error
 	}
 
+	type getOrderMock struct {
+		request *ordersv1.GetOrderRequest
+		order   *ordersv1.Order
+		err     error
+	}
+
 	tests := []struct {
-		name          string
-		path          string
-		clientGetItem *getItemMock
-		wantStatus    int
-		wantCode      codes.Code
-		wantItem      *catalogv1.Item
-		wantMessage   string
+		name           string
+		path           string
+		clientGetItem  *getItemMock
+		clientGetOrder *getOrderMock
+		wantStatus     int
+		wantCode       codes.Code
+		wantItem       *catalogv1.Item
+		wantOrder      *ordersv1.Order
+		wantMessage    string
 	}{
 		{
 			name: "success",
 			path: "/api/v1/items/42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				item:    &catalogv1.Item{Id: "42", Name: "Book"},
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				item: &catalogv1.Item{
+					Id:   "42",
+					Name: "Book",
+				},
 			},
 			wantStatus: http.StatusOK,
-			wantItem:   &catalogv1.Item{Id: "42", Name: "Book"},
+			wantItem: &catalogv1.Item{
+				Id:   "42",
+				Name: "Book",
+			},
 		},
 		{
 			name: "not found",
 			path: "/api/v1/items/missing",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "missing"},
-				err:     status.Error(codes.NotFound, "item not found"),
+				request: &catalogv1.GetItemRequest{
+					Id: "missing",
+				},
+				err: status.Error(codes.NotFound, "item not found"),
 			},
 			wantStatus:  http.StatusNotFound,
 			wantCode:    codes.NotFound,
@@ -61,8 +80,10 @@ func TestServerHandler(t *testing.T) {
 			name: "unavailable",
 			path: "/api/v1/items/42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				err:     status.Error(codes.Unavailable, "backend offline"),
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.Unavailable, "backend offline"),
 			},
 			wantStatus:  http.StatusServiceUnavailable,
 			wantCode:    codes.Unavailable,
@@ -72,12 +93,47 @@ func TestServerHandler(t *testing.T) {
 			name: "deadline exceeded",
 			path: "/api/v1/items/42",
 			clientGetItem: &getItemMock{
-				request: &catalogv1.GetItemRequest{Id: "42"},
-				err:     status.Error(codes.DeadlineExceeded, "backend timeout"),
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.DeadlineExceeded, "backend timeout"),
 			},
 			wantStatus:  http.StatusGatewayTimeout,
 			wantCode:    codes.DeadlineExceeded,
 			wantMessage: "backend timeout",
+		},
+		{
+			name: "orders route",
+			path: "/api/v1/orders/42",
+			clientGetOrder: &getOrderMock{
+				request: &ordersv1.GetOrderRequest{
+					Id: "42",
+				},
+				order: &ordersv1.Order{
+					Id:     "42",
+					ItemId: "7",
+					Status: "created",
+				},
+			},
+			wantStatus: http.StatusOK,
+			wantOrder: &ordersv1.Order{
+				Id:     "42",
+				ItemId: "7",
+				Status: "created",
+			},
+		},
+		{
+			name: "orders backend unavailable",
+			path: "/api/v1/orders/42",
+			clientGetOrder: &getOrderMock{
+				request: &ordersv1.GetOrderRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.Unavailable, "orders offline"),
+			},
+			wantStatus:  http.StatusServiceUnavailable,
+			wantCode:    codes.Unavailable,
+			wantMessage: "orders offline",
 		},
 		{
 			name:       "unknown route does not call backend",
@@ -96,10 +152,22 @@ func TestServerHandler(t *testing.T) {
 				client.GetItemMock.Expect(minimock.AnyContext, call.request).Return(call.item, call.err)
 				client.GetItemMock.Times(1)
 			}
-			// Replace only the outgoing RPC; exercise the handler without a network server.
+			ordersClient := mocks.NewOrderServiceClientMock(t)
+			if call := tt.clientGetOrder; call != nil {
+				ordersClient.GetOrderMock.Expect(minimock.AnyContext, call.request).Return(call.order, call.err)
+				ordersClient.GetOrderMock.Times(1)
+			}
+			// Подменяем только исходящий RPC; проверяем обработчик без запуска сетевого сервера.
 			conn, err := grpc.NewClient("passthrough:///unused",
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithUnaryInterceptor(func(ctx context.Context, method string, request, reply any, _ *grpc.ClientConn, _ grpc.UnaryInvoker, _ ...grpc.CallOption) error {
+					if method == ordersv1.OrderService_GetOrder_FullMethodName {
+						order, err := ordersClient.GetOrder(ctx, request.(*ordersv1.GetOrderRequest))
+						if err == nil {
+							proto.Merge(reply.(*ordersv1.Order), order)
+						}
+						return err
+					}
 					assert.Equal(t, catalogv1.CatalogService_GetItem_FullMethodName, method)
 					item, err := client.GetItem(ctx, request.(*catalogv1.GetItemRequest))
 					if err == nil {
@@ -108,15 +176,11 @@ func TestServerHandler(t *testing.T) {
 					return err
 				}),
 			)
-			if !assert.NoError(t, err) {
-				return
-			}
+			assert.NoError(t, err)
 			t.Cleanup(func() { assert.NoError(t, conn.Close()) })
 
 			server, err := NewServer(t.Context(), conn)
-			if !assert.NoError(t, err) {
-				return
-			}
+			assert.NoError(t, err)
 			assert.Equal(t, 5*time.Second, server.ReadHeaderTimeout)
 			assert.Equal(t, 60*time.Second, server.IdleTimeout)
 			recorder := httptest.NewRecorder()
@@ -127,14 +191,24 @@ func TestServerHandler(t *testing.T) {
 				return
 			}
 			assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+			if tt.wantOrder != nil {
+				var order struct {
+					ID     string `json:"id"`
+					ItemID string `json:"itemId"`
+					Status string `json:"status"`
+				}
+				assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &order))
+				assert.Equal(t, tt.wantOrder.Id, order.ID)
+				assert.Equal(t, tt.wantOrder.ItemId, order.ItemID)
+				assert.Equal(t, tt.wantOrder.Status, order.Status)
+				return
+			}
 			if tt.wantStatus == http.StatusOK {
 				var item struct {
 					ID   string `json:"id"`
 					Name string `json:"name"`
 				}
-				if !assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &item)) {
-					return
-				}
+				assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &item))
 				assert.Equal(t, tt.wantItem.Id, item.ID)
 				assert.Equal(t, tt.wantItem.Name, item.Name)
 				return
@@ -144,9 +218,7 @@ func TestServerHandler(t *testing.T) {
 				Code    codes.Code `json:"code"`
 				Message string     `json:"message"`
 			}
-			if !assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body)) {
-				return
-			}
+			assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 			assert.Equal(t, tt.wantCode, body.Code)
 			if tt.wantMessage != "" {
 				assert.Equal(t, tt.wantMessage, body.Message)

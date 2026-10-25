@@ -1,7 +1,7 @@
-# Coursework documents
+
 /docs/
 
-# Build outputs and locally installed generators
+
 /bin/
 /.bin/
 /build/
@@ -10,14 +10,14 @@
 *.test
 *.exe
 
-# Test coverage and profiling
+
 /coverage/
 /coverage.out
 /coverage.html
 *.prof
 *.pprof
 
-# Local configuration and credentials
+
 .env
 .env.*
 !.env.example
@@ -26,7 +26,6 @@
 /certs/
 *.key
 
-# Local agent and editor settings
 /.agents/
 /.codex/
 /.idea/

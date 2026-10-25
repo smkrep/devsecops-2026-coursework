@@ -13,7 +13,9 @@ type Handler struct {
 }
 
 func NewHandler(service *gateway.Service) *Handler {
-	return &Handler{service: service}
+	return &Handler{
+		service: service,
+	}
 }
 
 func (h *Handler) GetItem(ctx context.Context, request *catalogv1.GetItemRequest) (*catalogv1.Item, error) {
@@ -21,5 +23,8 @@ func (h *Handler) GetItem(ctx context.Context, request *catalogv1.GetItemRequest
 	if err != nil {
 		return nil, err
 	}
-	return &catalogv1.Item{Id: item.ID, Name: item.Name}, nil
+	return &catalogv1.Item{
+		Id:   item.ID,
+		Name: item.Name,
+	}, nil
 }

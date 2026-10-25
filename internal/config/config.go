@@ -1,37 +1,53 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrInvalidTimeout = errors.New("invalid backend timeout")
+)
+
 type Config struct {
-	HTTPAddr       string
-	GRPCAddr       string
-	BackendAddr    string
-	BackendTimeout time.Duration
+	HTTPAddr            string
+	GRPCAddr            string
+	CatalogBackendAddrs []string
+	OrdersBackendAddrs  []string
+	BackendTimeout      time.Duration
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:    env("HTTP_ADDR", "127.0.0.1:8080"),
-		GRPCAddr:    env("GRPC_ADDR", "127.0.0.1:9090"),
-		BackendAddr: env("BACKEND_ADDR", "127.0.0.1:9092"),
+		HTTPAddr: env("HTTP_ADDR", "127.0.0.1:8080"),
+		GRPCAddr: env("GRPC_ADDR", "127.0.0.1:9090"),
 	}
 	for name, addr := range map[string]string{
-		"HTTP_ADDR": cfg.HTTPAddr, "GRPC_ADDR": cfg.GRPCAddr, "BACKEND_ADDR": cfg.BackendAddr,
+		"HTTP_ADDR": cfg.HTTPAddr, "GRPC_ADDR": cfg.GRPCAddr,
 	} {
 		host, port, err := net.SplitHostPort(addr)
 		if err != nil || host == "" || port == "" {
-			return Config{}, fmt.Errorf("%s must be a host:port address with a nonempty host and port", name)
+			return Config{}, fmt.Errorf("%w: %s must be a host:port address with a nonempty host and port", ErrInvalidAddress, name)
 		}
 	}
 	var err error
+	cfg.CatalogBackendAddrs, err = backendAddresses("CATALOG_BACKEND_ADDRS", "127.0.0.1:9092")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.OrdersBackendAddrs, err = backendAddresses("ORDERS_BACKEND_ADDRS", "127.0.0.1:9093")
+	if err != nil {
+		return Config{}, err
+	}
 	cfg.BackendTimeout, err = time.ParseDuration(env("BACKEND_TIMEOUT", "3s"))
 	if err != nil || cfg.BackendTimeout <= 0 {
-		return Config{}, fmt.Errorf("BACKEND_TIMEOUT must be a positive duration, for example 3s")
+		return Config{}, fmt.Errorf("%w: BACKEND_TIMEOUT must be a positive duration, for example 3s", ErrInvalidTimeout)
 	}
 	return cfg, nil
 }
@@ -41,4 +57,23 @@ func env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// backendAddresses читает разделённый запятыми список адресов host:port и удаляет повторы.
+func backendAddresses(name, fallback string) ([]string, error) {
+	var addresses []string
+	seen := make(map[string]bool)
+	for _, value := range strings.Split(env(name, fallback), ",") {
+		addr := strings.TrimSpace(value)
+		host, port, err := net.SplitHostPort(addr)
+		number, portErr := strconv.Atoi(port)
+		if err != nil || host == "" || strings.ContainsAny(host, " /\t\n\r") || portErr != nil || number < 1 || number > 65535 {
+			return nil, fmt.Errorf("%w: %s must contain comma-separated host:port addresses with ports between 1 and 65535: %q", ErrInvalidAddress, name, value)
+		}
+		if !seen[addr] {
+			addresses = append(addresses, addr)
+			seen[addr] = true
+		}
+	}
+	return addresses, nil
 }

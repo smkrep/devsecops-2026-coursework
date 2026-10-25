@@ -27,10 +27,16 @@ func TestServiceGetItem(t *testing.T) {
 			name: "success",
 			id:   "42",
 			backendGetItem: &getItemMock{
-				id:   "42",
-				item: gateway.Item{ID: "42", Name: "Book"},
+				id: "42",
+				item: gateway.Item{
+					ID:   "42",
+					Name: "Book",
+				},
 			},
-			want: gateway.Item{ID: "42", Name: "Book"},
+			want: gateway.Item{
+				ID:   "42",
+				Name: "Book",
+			},
 		},
 		{
 			name: "backend error",
