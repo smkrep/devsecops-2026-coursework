@@ -16,13 +16,15 @@ var (
 )
 
 type Config struct {
-	HTTPAddr            string
-	GRPCAddr            string
-	CatalogBackendAddrs []string
-	OrdersBackendAddrs  []string
-	BackendTimeout      time.Duration
-	AuthBackendAddrs    []string
-	AuthTimeout         time.Duration
+	HTTPAddr              string
+	GRPCAddr              string
+	CatalogBackendAddrs   []string
+	OrdersBackendAddrs    []string
+	BackendTimeout        time.Duration
+	AuthBackendAddrs      []string
+	AuthTimeout           time.Duration
+	RateLimitBackendAddrs []string
+	RateLimitTimeout      time.Duration
 }
 
 func Load() (Config, error) {
@@ -50,6 +52,14 @@ func Load() (Config, error) {
 	cfg.AuthBackendAddrs, err = backendAddresses("AUTH_BACKEND_ADDRS", "127.0.0.1:9096")
 	if err != nil {
 		return Config{}, err
+	}
+	cfg.RateLimitBackendAddrs, err = backendAddresses("RATE_LIMIT_BACKEND_ADDRS", "127.0.0.1:9098")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.RateLimitTimeout, err = time.ParseDuration(env("RATE_LIMIT_TIMEOUT", "1s"))
+	if err != nil || cfg.RateLimitTimeout <= 0 {
+		return Config{}, fmt.Errorf("%w: RATE_LIMIT_TIMEOUT must be a positive duration, for example 1s", ErrInvalidTimeout)
 	}
 	cfg.AuthTimeout, err = time.ParseDuration(env("AUTH_TIMEOUT", "1s"))
 	if err != nil || cfg.AuthTimeout <= 0 {

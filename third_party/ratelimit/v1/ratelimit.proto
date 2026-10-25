@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ratelimit.v1;
+
+option go_package = "github.com/smkrep/devsecops-2026-coursework/gen/ratelimit/v1;ratelimitv1";
+
+// Контракт внешнего сервиса лимитов; его реализация в проект не входит.
+service RateLimitService {
+  // Атомарно проверяет лимит и учитывает один запрос, если он разрешён.
+  rpc CheckLimit(CheckLimitRequest) returns (CheckLimitResponse);
+}
+
+message CheckLimitRequest {
+  string user_id = 1;
+  // Полное имя gRPC-метода, например /catalog.v1.CatalogService/GetItem.
+  string resource = 2;
+}
+
+message CheckLimitResponse {
+  bool allowed = 1;
+}

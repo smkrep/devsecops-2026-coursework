@@ -45,6 +45,10 @@ func TestRunInvalidGRPCAddress(t *testing.T) {
 					"127.0.0.1:9096",
 				},
 				AuthTimeout: time.Second,
+				RateLimitBackendAddrs: []string{
+					"127.0.0.1:9098",
+				},
+				RateLimitTimeout: time.Second,
 			}
 			err := Run(t.Context(), cfg)
 			var addrErr *net.AddrError

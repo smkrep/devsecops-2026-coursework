@@ -90,6 +90,19 @@ func TestServerHandler(t *testing.T) {
 			wantMessage: "access denied",
 		},
 		{
+			name: "rate limit exceeded",
+			path: "/api/v1/items/42",
+			clientGetItem: &getItemMock{
+				request: &catalogv1.GetItemRequest{
+					Id: "42",
+				},
+				err: status.Error(codes.ResourceExhausted, "rate limit exceeded"),
+			},
+			wantStatus:  http.StatusTooManyRequests,
+			wantCode:    codes.ResourceExhausted,
+			wantMessage: "rate limit exceeded",
+		},
+		{
 			name: "not found",
 			path: "/api/v1/items/missing",
 			clientGetItem: &getItemMock{

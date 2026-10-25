@@ -23,6 +23,10 @@ func TestLoad(t *testing.T) {
 			"127.0.0.1:9096",
 		},
 		AuthTimeout: time.Second,
+		RateLimitBackendAddrs: []string{
+			"127.0.0.1:9098",
+		},
+		RateLimitTimeout: time.Second,
 	}
 	tests := []struct {
 		name    string
@@ -37,13 +41,15 @@ func TestLoad(t *testing.T) {
 		{
 			name: "overrides",
 			env: map[string]string{
-				"HTTP_ADDR":             "0.0.0.0:8081",
-				"GRPC_ADDR":             "[::1]:9091",
-				"CATALOG_BACKEND_ADDRS": " catalog:9092, [::1]:9094, catalog:9092 ",
-				"ORDERS_BACKEND_ADDRS":  "orders:9093,orders:9095",
-				"BACKEND_TIMEOUT":       "250ms",
-				"AUTH_BACKEND_ADDRS":    "auth:9096,auth:9097",
-				"AUTH_TIMEOUT":          "500ms",
+				"HTTP_ADDR":                "0.0.0.0:8081",
+				"GRPC_ADDR":                "[::1]:9091",
+				"CATALOG_BACKEND_ADDRS":    " catalog:9092, [::1]:9094, catalog:9092 ",
+				"ORDERS_BACKEND_ADDRS":     "orders:9093,orders:9095",
+				"BACKEND_TIMEOUT":          "250ms",
+				"AUTH_BACKEND_ADDRS":       "auth:9096,auth:9097",
+				"AUTH_TIMEOUT":             "500ms",
+				"RATE_LIMIT_BACKEND_ADDRS": "limits:9098,limits:9099",
+				"RATE_LIMIT_TIMEOUT":       "200ms",
 			},
 			want: Config{
 				HTTPAddr: "0.0.0.0:8081",
@@ -62,6 +68,11 @@ func TestLoad(t *testing.T) {
 					"auth:9097",
 				},
 				AuthTimeout: 500 * time.Millisecond,
+				RateLimitBackendAddrs: []string{
+					"limits:9098",
+					"limits:9099",
+				},
+				RateLimitTimeout: 200 * time.Millisecond,
 			},
 		},
 		{
@@ -105,6 +116,27 @@ func TestLoad(t *testing.T) {
 				"CATALOG_BACKEND_ADDRS": "http://catalog:9092",
 			},
 			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "invalid rate limit address",
+			env: map[string]string{
+				"RATE_LIMIT_BACKEND_ADDRS": "limits",
+			},
+			wantErr: ErrInvalidAddress,
+		},
+		{
+			name: "invalid rate limit timeout",
+			env: map[string]string{
+				"RATE_LIMIT_TIMEOUT": "soon",
+			},
+			wantErr: ErrInvalidTimeout,
+		},
+		{
+			name: "zero rate limit timeout",
+			env: map[string]string{
+				"RATE_LIMIT_TIMEOUT": "0s",
+			},
+			wantErr: ErrInvalidTimeout,
 		},
 		{
 			name: "invalid auth address",
@@ -153,6 +185,8 @@ func TestLoad(t *testing.T) {
 				"BACKEND_TIMEOUT",
 				"AUTH_BACKEND_ADDRS",
 				"AUTH_TIMEOUT",
+				"RATE_LIMIT_BACKEND_ADDRS",
+				"RATE_LIMIT_TIMEOUT",
 			} {
 				t.Setenv(key, "")
 				assert.NoError(t, os.Unsetenv(key))

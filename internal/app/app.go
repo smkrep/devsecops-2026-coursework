@@ -41,6 +41,12 @@ func Run(ctx context.Context, cfg config.Config) error {
 	}
 	defer authConn.Close()
 
+	rateLimitConn, err := upstream.NewBackendConn(cfg.RateLimitBackendAddrs)
+	if err != nil {
+		return fmt.Errorf("create rate limit client: %w", err)
+	}
+	defer rateLimitConn.Close()
+
 	grpcListener, err := net.Listen("tcp", cfg.GRPCAddr)
 	if err != nil {
 		return fmt.Errorf("listen for gRPC: %w", err)
@@ -48,7 +54,11 @@ func Run(ctx context.Context, cfg config.Config) error {
 	defer grpcListener.Close()
 
 	verifier := upstream.NewAuthentication(authConn, cfg.AuthTimeout)
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(grpctransport.Authentication(verifier)))
+	limiter := upstream.NewRateLimit(rateLimitConn, cfg.RateLimitTimeout)
+	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		grpctransport.Authentication(verifier),
+		grpctransport.RateLimiting(limiter),
+	))
 	service := gateway.NewService(upstream.NewCatalog(backendConn, cfg.BackendTimeout))
 	catalogv1.RegisterCatalogServiceServer(grpcServer, grpctransport.NewHandler(service))
 	orders := gateway.NewOrderService(upstream.NewOrders(ordersConn, cfg.BackendTimeout))
